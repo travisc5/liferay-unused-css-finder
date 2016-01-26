@@ -1,3 +1,4 @@
+<<<<<<< c3045b40978836c96e154bf2383a3c8c62356a97
 #lucf
 
 ## Description
@@ -23,3 +24,7 @@ Copyright (c) 2016 Travis Cory
 ## Acknowledgments
 
 Built using [generator-commader](https://github.com/Hypercubed/generator-commander).
+=======
+# liferay-unused-css-finder
+A command line tool for finding unused CSS within your theme
+>>>>>>> Initial commit
