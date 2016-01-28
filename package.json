@@ -1,43 +1,40 @@
 {
-  "name": "liferay-web-services-cli",
-  "version": "0.3.0",
-  "description": "A command-line interface for Liferay's JSON Web Services",
-  "main": "bin/lws",
-  "scripts": {
-    "test": "test"
+  "name": "lucf",
+  "version": "0.0.0",
+  "description": "A CLI app to find unused CSS selectors in a Liferay Theme",
+  "private": true,
+  "bin": {
+    "lucf": "./bin/lucf"
   },
-  "author": "Drew Brokke",
+  "scripts": {
+    "test": "mocha -R spec"
+  },
+  "author": {
+    "name": "Travis Cory",
+    "email": "travis.cory@liferay.com",
+    "url": "https://github.com/travisrcory"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/travisrcory/lucf"
+  },
   "license": "MIT",
+  "bugs": "https://github.com/travisrcory/lucf/issues",
   "dependencies": {
-    "bluebird": "^2.9.25",
+    "autocmdr": "~0.0.7",
     "chalk": "^1.1.1",
     "chance": "^0.7.3",
     "cli-table": "^0.3.1",
     "commander": "^2.7.1",
+    "js-crawler" : "latest",
     "fs-extra": "^0.18.4",
     "inquirer": "^0.8.5",
+    "liferay-connector": "0.8.1",
     "lodash": "^3.6.0",
-    "prettyjson": "^1.1.0",
     "progress": "^1.1.8",
     "request": "^2.53.0",
     "userhome": "^1.0.0"
   },
-  "devDependencies": {},
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/drewbrokke/liferay-web-services-cli.git"
-  },
-  "keywords": [
-    "cli",
-    "development",
-    "liferay"
-  ],
-  "bugs": {
-    "url": "https://github.com/drewbrokke/liferay-web-services-cli/issues"
-  },
-  "homepage": "https://github.com/drewbrokke/liferay-web-services-cli",
-  "preferGlobal": true,
-  "bin": {
-    "lws": "bin/lws"
+  "devDependencies": {
   }
 }
