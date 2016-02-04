@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+
+<html>
+	<head>
+		<meta charset="utf-8">
+
+		<link rel="shortcut icon" href="images/favicon.ico" />
+
+		<title>Results for {{theme_name}}</title>
+
+		<link rel="stylesheet" type="text/css" href="css/main.css">
+
+		<script src="js/main.js" type="text/javascript" charset="utf-8" async defer></script>
+	</head>
+
+	<body>
+		<div class="results-header">
+			<img class="logo" src="images/lucf-logo.png" alt="Logo for Liferay Unused CSS Tool" />
+
+			<h1>results for {{theme_name}}</h1>
+		</div>
+
+		<div class="results-body">
+		{{#if unused_css.length}}
+			<p class="result-message">You are not using <span class="label label-{{condition}}">{{percent}}&#37;</span> of <a href="{{file_path}}" target="_blank">{{file_name}}</a>.</p>
+
+			<h2>Unused Selectors</h2>
+
+			<ul class="unused-selectors">
+				{{#each unused_css}}
+					<li class="selector-container" onclick="this.classList.toggle('open');">
+						<button class="selector" type="button">{{this.selectors}} <svg class="icon-caret-down" width="15" height="15" viewBox="0 0 1792 1792" xmlns="http://www.w3.org/2000/svg"><path d="M1408 704q0 26-19 45l-448 448q-19 19-45 19t-45-19l-448-448q-19-19-19-45t19-45 45-19h896q26 0 45 19t19 45z"/></svg></button>
+
+						<div class="declarations">
+							{{#each this.declarations}}
+							<span class="declaration">{{this}}</span>
+							{{/each}}
+						</div>
+					</li>
+				{{/each}}
+			</ul>
+		{{else}}
+			<p class="result-message">You are using all of your CSS</p>
+
+			<div class="rounded-container">
+				<div id="thumbsUp" class="rounded thumbs-up-container">
+					<svg class="thumbs-up" xmlns="http://www.w3.org/2000/svg" width="456.8" height="456.8" viewBox="0 0 456.8 456.8">
+						<path d="M441 252.7c10.6-12 15.8-26.2 15.8-42.6 0-14.7-5.4-27.6-16.2-38.4-11-11-23.7-16.3-38.6-16.3h-79c.7-2.7 1.5-5 2.2-6.8.8-2 1.8-4 3.2-6.3l2.8-5.2c3.4-6.4 6-11.8 8-16 1.7-4 3.5-9.8 5.3-17 1.8-7.3 2.7-14.5 2.7-21.8 0-4.5 0-8.3-.2-11 0-3-.5-7.2-1.4-13-.8-5.7-2-10.4-3.4-14.2-1.4-3.8-3.7-8-7-13-3-4.6-6.8-8.5-11.3-11.4-4.6-3-10.3-5.5-17.2-7.5-7-2-14.8-3-23.6-3-5 0-9.2 2-12.8 5.6-3.8 3.8-7 8.5-9.7 14.2-2.7 5.7-4.6 10.7-5.6 15-1 4-2 10-3.5 17.3l-3.8 17.4c-1 3.5-2.6 8-5 13.8-2.5 5.7-5.4 10.3-9 13.7-6.2 6.2-15.8 17.6-28.7 34.2-9.3 12.2-19 23.7-28.8 34.5-10 11-17.2 16.5-21.7 17-4.8.3-9 2.2-12.3 5.7-3.4 3.5-5.2 7.7-5.2 12.4v183c0 5 1.8 9.2 5.5 12.8 3.6 3.5 8 5.3 12.8 5.5 6.7.3 21.7 4.5 45 12.7 14.8 5 26.2 8.7 34.5 11.3 8.3 2.5 20 5.3 34.7 8.2 15 3 28.6 4.5 41 4.5h36.9c25.4-.4 44-7.8 56.3-22.3 11-13 15.7-30.4 14-51.7 7.4-7 12.5-16 15.4-26.8 3.3-11.7 3.3-22.8 0-33.5 9-11.6 13-24.7 12.4-39 0-6.2-1.4-13.4-4.3-21.8zM100.5 192H18.3c-5 0-9.3 1.7-13 5.3C2 201 0 205.3 0 210v183c0 4.8 1.8 9 5.4 12.7 3.6 3.6 8 5.4 13 5.4h82c5 0 9.3-1.7 13-5.3 3.6-3.6 5.4-8 5.4-12.8V210c0-4.8-1.8-9-5.5-12.7-3.6-3.6-8-5.4-12.8-5.4zM67.7 369.2c-3.7 3.5-8 5.3-13 5.3s-9.4-1.8-13-5.3c-3.4-3.5-5.2-7.8-5.2-13 0-5 1.8-9.2 5.3-12.8 3.5-3.6 8-5.5 13-5.5s9.2 2 13 5.5c3.5 3.6 5.3 8 5.3 12.8 0 5.2-1.7 9.5-5.3 13z"/>
+					</svg>
+				</div>
+			</div>
+		{{/if}}
+		</div>
+	</body>
+</html>
