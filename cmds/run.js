@@ -6,17 +6,17 @@ var _ = require('lodash');
 var cheerio = require('cheerio');
 var childProcess = require('child_process');
 var configUtil = require('../lib/configUtil');
-var crawler = require("simplecrawler");
 var css = require('css');
 var fs = require('fs-extra');
 var Handlebars = require('handlebars');
 var inquirer = require('inquirer');
 var liferay = require('liferay-connector');
 var path = require('path');
-var phantomjs = require('phantomjs-prebuilt');
 var program = require('commander');
 var ProgressBar = require('progress');
+var Promise = require("bluebird");
 var request = require('request');
+var url = require("url");
 
 var config = configUtil.getCurrentInstanceConfig();
 var handlebars_data = {};
@@ -24,18 +24,43 @@ var resultsFile = fs.createOutputStream('./output/results.html');
 var resultsTemplate = fs.readFileSync('./templates/results.hbs', 'utf8');
 var template = Handlebars.compile(resultsTemplate);
 
-var basePath = [
-	'http://',
-	config.host + ':',
-	config.port
-].join('');
+if (!Array.prototype.includes) {
+	Array.prototype.includes = function(searchElement /*, fromIndex*/ ) {
+		'use strict';
+		var O = Object(this);
+		var len = parseInt(O.length) || 0;
 
-var userInfo = {
-	login: config.username + '@' + config.mailDomain,
-	password: config.password
-};
+		if (len === 0) {
+			return false;
+		}
 
-handlebars_data.file_name = config.cssFile;
+		var n = parseInt(arguments[1]) || 0;
+		var k;
+
+		if (n >= 0) {
+			k = n;
+		}
+		else {
+			k = len + n;
+			if (k < 0) {
+				k = 0;
+			}
+		}
+
+		var currentElement;
+
+		while (k < len) {
+			currentElement = O[k];
+			if (searchElement === currentElement ||
+			(searchElement !== searchElement && currentElement !== currentElement)) { // NaN !== NaN
+				return true;
+		 	 }
+		 	k++;
+		}
+
+		return false;
+	};
+}
 
 var analyzeCSSResults = function(session) {
 	var unusedPercent = Math.round((session.sessionUnusedCSS.length / session.sessionParseCSS.length) * 100);
@@ -56,28 +81,109 @@ var analyzeCSSResults = function(session) {
 }
 
 var crawlSites = function(session) {
-	var layouts = session.sessionLayouts;
 	var pseudoCSSRemoved = [];
 	var urlsToTest = [];
+	var layouts;
 
-	_.forEach(
-		layouts,
-		function(layout) {
-			var url = [
-				session.sessionGroupURL,
-				layout.value
-			].join('');
+	if (handlebars_data.type == 'local') {
+		layouts = session.sessionLayouts;
 
-			urlsToTest.push(url);
-		}
-	);
+		_.forEach(
+			layouts,
+			function(layout) {
+				var url = [
+					session.sessionGroupURL,
+					layout.value
+				].join('');
 
-	session.sessionURLtoTest = urlsToTest;
+				urlsToTest.push(url);
+			}
+		);
 
-	initializeProgressBar(session.sessionURLtoTest.length, session);
+		session.sessionURLtoTest = urlsToTest;
 
-	return searchPageForCSS(session);
+		initializeProgressBar(session.sessionURLtoTest.length, session);
+
+		searchPageForCSS(session);
+	}
+	else {
+		var urlsToTest = [];
+
+		request(
+			session.sessionBaseURL,
+			function(err, response, html) {
+				if (err) {
+					throw err;
+				}
+				if (!err && response.statusCode == 200) {
+					var $ = cheerio.load(html);
+
+					var links = $('a');
+
+					var index = 1;
+
+					if (links.length > 0) {
+						links.each(
+							function() {
+								if (index == session.sessionNumberOfPagesToCrawl) {
+									console.log("Done fetching URLs to test");
+									console.log();
+
+									return false;
+								}
+								else {
+									var href = $(this).attr('href');
+
+									if (href !== undefined) {
+										href = href.trim();
+
+										href = href.split("?")[0];
+
+										if (href != '') {
+											if (href.indexOf(session.sessionBaseURL) != -1) {
+												if (!urlsToTest.includes(href)) {
+													urlsToTest.push(href);
+
+													index++;
+												}
+											}
+
+											if (href.startsWith('/') && href.indexOf('//') == -1) {
+												href = session.sessionBaseURL + href;
+
+												if (!urlsToTest.includes(href)) {
+													urlsToTest.push(href);
+
+													index++;
+												}
+											}
+										}
+									}
+								}
+							}
+						);
+
+						urlsToTest = _.uniq(urlsToTest);
+
+						session.sessionURLtoTest = urlsToTest;
+
+						initializeProgressBar(session.sessionURLtoTest.length, session);
+
+						searchPageForCSS(session);
+					}
+					else {
+						console.log('No links on given page');
+
+						return false;
+					}
+				}
+			}
+		);
+
+
+	}
 };
+
 
 var getGroupInfo = function(session) {
 	session.invoke(
@@ -179,8 +285,6 @@ var getTheme = function(session) {
 };
 
 var initializeProgressBar = function(len, session) {
-	console.log();
-
 	var bar = new ProgressBar(
 		'Crawling Layouts [:bar] :percent :etas',
 		{
@@ -252,12 +356,12 @@ var saveCSSLocal = function(session) {
 			else if (!err && response.statusCode == 200)  {
 				var cssTempArray = [];
 				var size = parseInt(response.headers['content-length'], 10);
-				var themeCSS = css.parse(body);
+				var fetchedCSS = css.parse(body);
 
-				session.themeCSSFileSize = size;
+				session.fetchedCSSFileSize = size;
 
 				_.forEach(
-					themeCSS.stylesheet.rules,
+					fetchedCSS.stylesheet.rules,
 					function(rule) {
 						if (rule.type == 'rule') {
 							var tempRuleObj = {};
@@ -291,6 +395,11 @@ var saveCSSLocal = function(session) {
 var searchPageForCSS = function(session) {
 	var unusedCSSSelectors = [];
 
+	if (handlebars_data.type == 'production') {
+		console.log('Now let\'s analyze these URLs!');
+		console.log('Sit back, this may take some time.');
+	}
+
 	__request(
 		session.sessionURLtoTest,
 		function(responses) {
@@ -303,11 +412,10 @@ var searchPageForCSS = function(session) {
 
 				index++;
 
-				if (index == session.sessionURLtoTest.length) {
+				if (index === session.sessionURLtoTest.length) {
 					session.sessionUnusedCSS = _.uniq(unusedCSSSelectors);
 
 					handlebars_data.unused_css = session.sessionUnusedCSS;
-					// handlebars_data.unused_css = [];
 
 					return analyzeCSSResults(session);
 				}
@@ -319,7 +427,7 @@ var searchPageForCSS = function(session) {
 								_.forEach(
 									object.selectors,
 									function(selector) {
-										if (selector.search(/\:(?:ho)\w+|\:(?:fo)\w+|\:(?:be)\w+|\:(?:aft)\w+/) == -1) {
+										if (selector.search(/:{1,2}|(?:\.not\()/) == -1) {
 											var $ = cheerio.load(currentResponse.body);
 
 											if ($(selector).length == 0) {
@@ -387,6 +495,59 @@ var __request = function (urls, callback) {
 	}
 };
 
+var setLiferaySession = function() {
+	var basePath = [
+		'http://',
+		config.host + ':',
+		config.port
+	].join('');
+
+	var userInfo = {
+		login: config.username + '@' + config.mailDomain,
+		password: config.password
+	};
+
+	handlebars_data.file_name = config.cssFile;
+
+	liferay.authenticate(
+		basePath,
+		userInfo,
+		function (err, session) {
+			if (err) {
+				throw(err.message);
+			}
+			else {
+				return promptSites(session);
+			}
+		}
+	);
+};
+
+var setProductionSite = function() {
+	var session = {};
+	var questions = [
+		{ name: 'url', message: 'What site would you like to crawl?', default: 'https://twitter.com' },
+		{ name: 'cssFile', message: 'What is the URL of the CSS file you would like to use?', default: 'https://abs.twimg.com/a/1454375955/css/t1/twitter_core.bundle.css' },
+		{ name: 'numberPages', message: 'How many pages would you like to crawl (this tool will take longer to run the more pages you analyze)?', default: 10 },
+	];
+
+	inquirer.prompt(
+		questions,
+		function(answers) {
+			handlebars_data.file_name = 'your CSS';
+			handlebars_data.file_path = answers.cssFile;
+			handlebars_data.theme_name = answers.url;
+
+			session.sessionCSSPath = answers.cssFile;
+			session.sessionCrawlDepth = answers.depth;
+			session.sessionBaseURL = answers.url;
+			session.sessionNumberOfPagesToCrawl = answers.numberPages
+
+			return saveCSSLocal(session);
+		}
+	);
+}
+
 module.exports = function(program) {
 	program
 	.command('run')
@@ -394,15 +555,25 @@ module.exports = function(program) {
 	.description('Runs the lucf using the current selected configuraiton')
 	.action(
 		function() {
-			liferay.authenticate(
-				basePath,
-				userInfo,
-				function (err, session) {
-					if (err) {
-						throw(err.message);
+			var choices = [
+				"Local",
+				"Production"
+			];
+
+			var question = {type: 'list', name: 'type', choices: choices, message: 'Are you checking a Local instance or a Production website?'};
+
+			inquirer.prompt(
+				question,
+				function(answers) {
+					var type = answers.type.toLowerCase();
+
+					handlebars_data.type = type;
+
+					if (type == 'local') {
+						return setLiferaySession();
 					}
 					else {
-						promptSites(session);
+						return setProductionSite();
 					}
 				}
 			);

@@ -22,6 +22,7 @@
   "bugs": "https://github.com/travisrcory/lucf/issues",
   "dependencies": {
     "autocmdr": "~0.0.7",
+    "bluebird": "latest",
     "chalk": "^1.1.1",
     "chance": "^0.7.3",
     "cheerio": "^0.19.0",
