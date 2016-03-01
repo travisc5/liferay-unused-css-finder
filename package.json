@@ -7,7 +7,9 @@
     "lucf": "./bin/lucf"
   },
   "scripts": {
-    "test": "mocha -R spec"
+    "test": "snyk test && mocha -R spec",
+    "snyk-protect": "snyk protect",
+    "prepublish": "npm run snyk-protect"
   },
   "author": {
     "name": "Travis Cory",
@@ -22,17 +24,16 @@
   "bugs": "https://github.com/travisrcory/lucf/issues",
   "dependencies": {
     "autocmdr": "~0.0.7",
-    "bluebird": "latest",
-    "chalk": "^1.1.1",
-    "chance": "^0.7.3",
     "cheerio": "^0.19.0",
     "cli-table": "^0.3.1",
+    "cli-spinner": "^0.2.4",
     "commander": "^2.7.1",
     "css": "^2.2.1",
     "fs-extra": "^0.18.4",
     "handlebars": "^4.0.5",
     "inquirer": "^0.8.5",
-    "js-crawler" : "latest",
+    "jsdom": "^8.0.2",
+    "js-crawler": "^0.3.8",
     "liferay-connector": "0.8.1",
     "lodash": "^3.6.0",
     "progress": "^1.1.8",
@@ -40,6 +41,6 @@
     "simplecrawler": "^0.6.0",
     "userhome": "^1.0.0"
   },
-  "devDependencies": {
-  }
+  "devDependencies": {},
+  "snyk": true
 }

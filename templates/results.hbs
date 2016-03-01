@@ -7,35 +7,187 @@
 		<link rel="shortcut icon" href="images/favicon.ico" />
 
 		<title>Results for {{theme_name}}</title>
+		
+		<style>
+		@import url(https://fonts.googleapis.com/css?family=Open+Sans);
 
-		<link rel="stylesheet" type="text/css" href="css/main.css">
+		html {
+			height: 100%;
+		}
 
-		<script src="js/main.js" type="text/javascript" charset="utf-8" async defer></script>
+		body {
+			background-color: #FAFAFA;
+			font-family: 'Open Sans', sans-serif;
+			margin: 0;
+			padding: 0;
+			top: 0;
+			width: 100%;
+		}
+
+		.results-header {
+			background-color: #1DAEFC;
+			display: inline-block;
+			padding: 0.5em 2em;
+			text-transform: capitalize;
+			width: 100%;
+		}
+
+		.results-header img {
+			height: auto;
+			padding: 0 1em;
+			vertical-align: middle;
+			width: 125px;
+		}
+
+		.results-header h1 {
+			color: #FFF;
+			display: inherit;
+			padding: 0 0.5em;
+			vertical-align: middle;
+		}
+
+		.results-body {
+			margin: 0 auto;
+			max-width: 90%;
+			padding: 1em 0;
+			width: 100%;
+		}
+
+		.result-message {
+			background: #FFF;
+			box-shadow: 0 1.5px 4px rgba(0, 0, 0, 0.24), 0 1.5px 6px rgba(0, 0, 0, 0.12);
+			margin: 0;
+			padding: 1.25em;
+		}
+
+		.label {
+			border-radius: 4px;
+			border: 1px solid transparent;
+			margin: 0 .5em;
+			padding: 0.5em;
+		}
+
+		.label-danger {
+			background-color: #F2DEDE;
+			border-color: #EBCCD1;
+			color: #A94442;
+		}
+
+		.label-warning {
+			background-color: #FCF8E3;
+			border-color: #FAEBCC;
+			color: #8A6D3B;
+		}
+
+		.label-good {
+			background-color: #DDF0D8;
+			border-color: #D6E9C6;
+			color: #3C763D;
+		}
+
+		.unused-selectors {
+			display: block;
+			list-style: none;
+			margin: 0;
+			padding: 0;
+			width: 100%;
+		}
+
+		.open .icon-caret-down {
+			transform: rotate(180deg);
+		}
+
+		.icon-caret-down {
+			float: right;
+			transform: rotate(0deg);
+			transition: all 0.33s ease;
+			vertical-align: middle;
+		}
+
+		.selector {
+			background: #FFF;
+			border-width: 0;
+			box-shadow: 0 1.5px 4px rgba(0, 0, 0, 0.24), 0 1.5px 6px rgba(0, 0, 0, 0.12);
+			display: block;
+			font-family: inherit;
+			font-size: 12px;
+			margin: 3em 0 0 0;
+			padding: 1.25em;
+			text-align: left;
+			width: 100%;
+		}
+
+		.declarations {
+			background-color: transparent;
+			max-height: 0;
+			transition: max-height 0.5s cubic-bezier(.16,.66,.89,1);
+			transition: background-color 0.1s ease;
+		}
+
+		.declaration {
+			color: transparent;
+			display: block;
+			transition: color 0.1s ease;
+		}
+
+		.selector-container.open .declarations {
+			background: #485665;
+			margin-bottom: 1.25em;
+			max-height: 1000px;
+			padding: 1em;
+		}
+
+		.selector-container.open .declaration {
+			color: #FFF;
+		}
+
+		.rounded {
+			background-color: #1DAEFC;
+			border-radius: 50%;
+			box-shadow: 0 1.5px 4px rgba(0, 0, 0, 0.24), 0 1.5px 6px rgba(0, 0, 0, 0.12);
+			display: block;
+			padding: 2em;
+			margin: 2em auto;
+			overflow: hidden;
+			text-align: center;
+			width: 200px;
+		}
+
+		.thumbs-up {
+			fill: #BBE6FE;
+			height: auto;
+			stroke: #0E577E;
+			stroke-width: 10px;
+			transform: translateX(-235px);
+			transition: all 1s cubic-bezier(.17,.67,.75,1);
+			transition-delay: 5s;
+			width: 200px;
+		}
+
+		.loaded .thumbs-up {
+			transform: translateX(0);
+		}
+
+		</style>
 	</head>
-
-	<body>
+	
+	<body class="results-{{type}}">
 		<div class="results-header">
-			<img class="logo" src="images/lucf-logo.png" alt="Logo for Liferay Unused CSS Tool" />
+			<img class="logo" src="../images/lucf-logo.png" alt="Logo for Liferay Unused CSS Tool" />
 
 			<h1>results for {{theme_name}}</h1>
 		</div>
 
 		<div class="results-body">
 		{{#if unused_css.length}}
-			<p class="result-message">You are not using <span class="label label-{{condition}}">{{percent}}&#37;</span> of <a href="{{file_path}}" target="_blank">{{file_name}}</a>.</p>
+			<p class="result-message">You are not using <span class="label label-{{condition}}">{{percent}}&#37;</span> of <a href="{{file_path}}" target="_blank">{{file_name}}</a> selectors.</p>
 
 			<h2>Unused Selectors</h2>
 
 			<ul class="unused-selectors">
 				{{#each unused_css}}
-					<li class="selector-container" onclick="this.classList.toggle('open');">
-						<button class="selector" type="button">{{this.selectors}} <svg class="icon-caret-down" width="15" height="15" viewBox="0 0 1792 1792" xmlns="http://www.w3.org/2000/svg"><path d="M1408 704q0 26-19 45l-448 448q-19 19-45 19t-45-19l-448-448q-19-19-19-45t19-45 45-19h896q26 0 45 19t19 45z"/></svg></button>
-
-						<div class="declarations">
-							{{#each this.declarations}}
-							<span class="declaration">{{this}}</span>
-							{{/each}}
-						</div>
+					<li class="selector-container">
+						<span class="selector">{{this}}</span>
 					</li>
 				{{/each}}
 			</ul>

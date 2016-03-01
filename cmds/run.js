@@ -4,19 +4,18 @@
 
 var _ = require('lodash');
 var cheerio = require('cheerio');
-var childProcess = require('child_process');
 var configUtil = require('../lib/configUtil');
 var css = require('css');
 var fs = require('fs-extra');
 var Handlebars = require('handlebars');
+var jsdom = require("jsdom");
 var inquirer = require('inquirer');
 var liferay = require('liferay-connector');
-var path = require('path');
 var program = require('commander');
 var ProgressBar = require('progress');
-var Promise = require("bluebird");
 var request = require('request');
-var url = require("url");
+var Crawler = require('js-crawler');
+var Spinner = require('cli-spinner').Spinner;
 
 var config = configUtil.getCurrentInstanceConfig();
 var handlebars_data = {};
@@ -24,46 +23,10 @@ var resultsFile = fs.createOutputStream('./output/results.html');
 var resultsTemplate = fs.readFileSync('./templates/results.hbs', 'utf8');
 var template = Handlebars.compile(resultsTemplate);
 
-if (!Array.prototype.includes) {
-	Array.prototype.includes = function(searchElement /*, fromIndex*/ ) {
-		'use strict';
-		var O = Object(this);
-		var len = parseInt(O.length) || 0;
-
-		if (len === 0) {
-			return false;
-		}
-
-		var n = parseInt(arguments[1]) || 0;
-		var k;
-
-		if (n >= 0) {
-			k = n;
-		}
-		else {
-			k = len + n;
-			if (k < 0) {
-				k = 0;
-			}
-		}
-
-		var currentElement;
-
-		while (k < len) {
-			currentElement = O[k];
-			if (searchElement === currentElement ||
-			(searchElement !== searchElement && currentElement !== currentElement)) { // NaN !== NaN
-				return true;
-		 	 }
-		 	k++;
-		}
-
-		return false;
-	};
-}
-
 var analyzeCSSResults = function(session) {
-	var unusedPercent = Math.round((session.sessionUnusedCSS.length / session.sessionParseCSS.length) * 100);
+	var unusedPercent = Math.round((session.sessionUnusedCSS.length / session.sessionAllCSS.length) * 100);
+
+	console.log(session.sessionUnusedCSS.length, session.sessionAllCSS.length);
 
 	handlebars_data.percent = unusedPercent;
 
@@ -77,7 +40,11 @@ var analyzeCSSResults = function(session) {
 		handlebars_data.condition = 'good';
 	}
 
-	return resultsFile.write(template(handlebars_data));
+	console.log('Great! Please see \'../output/results.html\'');
+
+	resultsFile.write(template(handlebars_data));
+
+	process.exit();
 }
 
 var crawlSites = function(session) {
@@ -102,88 +69,46 @@ var crawlSites = function(session) {
 
 		session.sessionURLtoTest = urlsToTest;
 
-		initializeProgressBar(session.sessionURLtoTest.length, session);
-
-		searchPageForCSS(session);
+		cacheHTML(session);
 	}
 	else {
 		var urlsToTest = [];
-
-		request(
-			session.sessionBaseURL,
-			function(err, response, html) {
-				if (err) {
-					throw err;
-				}
-				if (!err && response.statusCode == 200) {
-					var $ = cheerio.load(html);
-
-					var links = $('a');
-
-					var index = 1;
-
-					if (links.length > 0) {
-						links.each(
-							function() {
-								if (index == session.sessionNumberOfPagesToCrawl) {
-									console.log("Done fetching URLs to test");
-									console.log();
-
-									return false;
-								}
-								else {
-									var href = $(this).attr('href');
-
-									if (href !== undefined) {
-										href = href.trim();
-
-										href = href.split("?")[0];
-
-										if (href != '') {
-											if (href.indexOf(session.sessionBaseURL) != -1) {
-												if (!urlsToTest.includes(href)) {
-													urlsToTest.push(href);
-
-													index++;
-												}
-											}
-
-											if (href.startsWith('/') && href.indexOf('//') == -1) {
-												href = session.sessionBaseURL + href;
-
-												if (!urlsToTest.includes(href)) {
-													urlsToTest.push(href);
-
-													index++;
-												}
-											}
-										}
-									}
-								}
-							}
-						);
-
-						urlsToTest = _.uniq(urlsToTest);
-
-						session.sessionURLtoTest = urlsToTest;
-
-						initializeProgressBar(session.sessionURLtoTest.length, session);
-
-						searchPageForCSS(session);
-					}
-					else {
-						console.log('No links on given page');
-
-						return false;
-					}
-				}
+		
+		var crawler = new Crawler().configure(
+			{
+  			depth: 3
 			}
 		);
-
-
+		
+		var spinner = new Spinner('Grabbing URL\'s from \'' + session.sessionBaseURL + '\'.. %s');
+		
+		spinner.setSpinnerString('|/-\\');
+		
+		spinner.start();
+		
+		crawler.crawl(
+			session.sessionBaseURL, 
+			function onSuccess(page) {
+				var url = page.url;
+				
+				if (url.indexOf(session.sessionBaseURL) >= 0) {
+					urlsToTest.push(url)
+				}
+			},
+			null,
+			function onAllFinished(crawledUrls) {
+				spinner.stop();
+				
+				console.log('');
+				console.log('Done!');
+				
+				session.sessionURLtoTest = _.uniq(urlsToTest);
+				
+				cacheHTML(session);
+			}
+		);
 	}
 };
-
 
 var getGroupInfo = function(session) {
 	session.invoke(
@@ -284,22 +209,20 @@ var getTheme = function(session) {
 	);
 };
 
-var initializeProgressBar = function(len, session) {
+var initializeProgressBar = function(len, message) {
 	var bar = new ProgressBar(
-		'Crawling Layouts [:bar] :percent :etas',
+		message,
 		{
 			complete: '=',
 			callback: function() {
 				console.log();
-				console.log("Completed! Please see '/output/results.html");
+				console.log();
 			},
 			incomplete: ' ',
 			width: 75,
 			total: len
 		}
 	);
-
-	session.sessionProgress = bar;
 
 	return bar;
 };
@@ -355,36 +278,20 @@ var saveCSSLocal = function(session) {
 			}
 			else if (!err && response.statusCode == 200)  {
 				var cssTempArray = [];
-				var size = parseInt(response.headers['content-length'], 10);
-				var fetchedCSS = css.parse(body);
-
-				session.fetchedCSSFileSize = size;
+				var parsedCSS = css.parse(body);
 
 				_.forEach(
-					fetchedCSS.stylesheet.rules,
+					parsedCSS.stylesheet.rules,
 					function(rule) {
 						if (rule.type == 'rule') {
-							var tempRuleObj = {};
-
-							tempRuleObj.selectors = rule.selectors;
-
-							var declartionArray = [];
-
-							_.forEach(
-								rule.declarations,
-								function(declarations) {
-									declartionArray.push(declarations.property + ': ' + declarations.value);
-								}
-							);
-
-							tempRuleObj.declarations = declartionArray;
-
-							cssTempArray.push(tempRuleObj);
+							cssTempArray.push(rule.selectors);
 						}
 					}
 				);
 
-				session.sessionParseCSS = cssTempArray;
+				cssTempArray = _.flatten(cssTempArray, true);
+
+				session.sessionParseCSS = _.uniq(cssTempArray);
 
 				return crawlSites(session);
 			}
@@ -392,55 +299,118 @@ var saveCSSLocal = function(session) {
 	);
 };
 
-var searchPageForCSS = function(session) {
+var cacheHTML = function(session) {
+	console.log('Now we will grab all the HTML');
 	var unusedCSSSelectors = [];
+	var allCSS = [];
+	var index = 1;
 
-	if (handlebars_data.type == 'production') {
-		console.log('Now let\'s analyze these URLs!');
-		console.log('Sit back, this may take some time.');
-	}
+	var bar = initializeProgressBar(session.sessionURLtoTest.length, 'Crawling Layouts [:bar] :percent :etas');
 
-	__request(
+	_.forEach(
 		session.sessionURLtoTest,
-		function(responses) {
-			var index = 0;
+		function(url) {
+			jsdom.env(
+				{
+				features: {
+					FetchExternalResources: ["script", "frame", "iframe", "link"],
+					ProcessExternalResources: ["script"]
+				},
+				url: url,
+				done: function (err, window) {
+						if (err) {
+							throw err;
+						}
 
-			for (url in responses) {
-				var currentResponse = responses[url];
+						if (window.document.readyState === 'complete') {
+							_.forEach(
+								session.sessionParseCSS,
+								function(selector) {
+									if (selector != undefined) {
+										if ((selector.search(/::?[^ ,:.]+|(?:\.not\()|(?:\@\-)/) == -1)) {
+											allCSS.push(selector);
 
-				session.sessionProgress.tick();
-
-				index++;
-
-				if (index === session.sessionURLtoTest.length) {
-					session.sessionUnusedCSS = _.uniq(unusedCSSSelectors);
-
-					handlebars_data.unused_css = session.sessionUnusedCSS;
-
-					return analyzeCSSResults(session);
-				}
-				else {
-					if (currentResponse.body) {
-						_.forEach(
-							session.sessionParseCSS,
-							function(object) {
-								_.forEach(
-									object.selectors,
-									function(selector) {
-										if (selector.search(/:{1,2}|(?:\.not\()/) == -1) {
-											var $ = cheerio.load(currentResponse.body);
-
-											if ($(selector).length == 0) {
-												unusedCSSSelectors.push(object);
+											var node = window.document.querySelectorAll(selector);
+											
+											if (node.length == 0) {
+												unusedCSSSelectors.push(selector);
+											}
+											else if ((node.length > 0) && _.includes(unusedCSSSelectors, selector)) {
+												_.pull(unusedCSSSelectors, selector);
 											}
 										}
 									}
-								);
-							}
+								}
+							);
 
-						);
+							bar.tick();
+						}
+
+						index++;
+
+						if (index == session.sessionURLtoTest.length) {
+							session.sessionAllCSS = _.uniq(allCSS);
+							session.sessionUnusedCSS = _.uniq(unusedCSSSelectors);
+
+							handlebars_data.unused_css = session.sessionUnusedCSS;
+
+							analyzeCSSResults(session);
+						}
 					}
 				}
+			);
+		}
+	)
+};
+
+var searchPageForCSS = function(session) {
+	var index = 0;
+	var unusedCSSSelectors = [];
+	var allCSS = [];
+
+	if (handlebars_data.type == 'production') {
+		console.log('Now let\'s analyze these URLs!');
+	}
+
+	var bar = initializeProgressBar(session.sessionPageHTML.length, 'Crawling Layouts [:bar] :percent :etas');
+
+	_.forEach(
+		session.sessionPageHTML,
+		function(html) {
+			bar.tick();
+			index++;
+
+			if (index == session.sessionPageHTML.length) {
+				session.sessionAllCSS = _.uniq(allCSS);
+				session.sessionUnusedCSS = _.uniq(unusedCSSSelectors);
+
+				handlebars_data.unused_css = session.sessionUnusedCSS;
+
+				analyzeCSSResults(session);
+			}
+			else {
+				var $ = cheerio.load(html);
+
+				_.forEach(
+					session.sessionParseCSS,
+					function(selector) {
+						if (selector != undefined) {
+							if ((selector.search(/::?[^ ,:.]+|(?:\.not\()|(?:\@\-)/) == -1)) {
+								var length = $(selector).length;
+
+								allCSS.push(selector);
+
+								if (length == 0) {
+									unusedCSSSelectors.push(selector);
+								}
+								else if ((length > 0) && _.includes(unusedCSSSelectors, selector)) {
+									_.pull(unusedCSSSelectors, selector);
+									_.pull(session.sessionParseCSS, selector);
+								}
+							}
+						}
+					}
+				);
 			}
 		}
 	);
@@ -456,10 +426,10 @@ var setTheme = function(session) {
 			var themeName = name.replace(/\-/g, ' ');
 
 			handlebars_data.theme_name = themeName;
-			handlebars_data.file_path = basePath + '/' + answers.theme + '/css/' + config.cssFile;
+			handlebars_data.file_path = session.sessionBaseLiferayPath + '/' + answers.theme + '/css/' + config.cssFile;
 
 			session.sessionCSSPath = [
-				basePath + '/',
+				session.sessionBaseLiferayPath + '/',
 				name + '/css/',
 				config.cssFile + '?minifierType=css'
 			].join('');
@@ -467,32 +437,6 @@ var setTheme = function(session) {
 			return saveCSSLocal(session);
 		}
 	);
-};
-
-var __request = function (urls, callback) {
-	'use strict';
-
-	var results = {};
-	var t = urls.length;
-	var c = 0;
-
-	var handler = function (error, response, body) {
-		var url = response.request.uri.href;
-
-		results[url] = {
-			error: error,
-			response: response,
-			body: body
-		};
-
-		if (++c === urls.length) {
-			callback(results);
-		}
-	};
-
-	while (t--) {
-		request(urls[t], handler);
-	}
 };
 
 var setLiferaySession = function() {
@@ -517,6 +461,8 @@ var setLiferaySession = function() {
 				throw(err.message);
 			}
 			else {
+				session.sessionBaseLiferayPath = basePath;
+
 				return promptSites(session);
 			}
 		}
@@ -526,9 +472,8 @@ var setLiferaySession = function() {
 var setProductionSite = function() {
 	var session = {};
 	var questions = [
-		{ name: 'url', message: 'What site would you like to crawl?', default: 'https://twitter.com' },
-		{ name: 'cssFile', message: 'What is the URL of the CSS file you would like to use?', default: 'https://abs.twimg.com/a/1454375955/css/t1/twitter_core.bundle.css' },
-		{ name: 'numberPages', message: 'How many pages would you like to crawl (this tool will take longer to run the more pages you analyze)?', default: 10 },
+		{ name: 'url', message: 'What site would you like to crawl?', default: 'http://www.jstips.co/' },
+		{ name: 'cssFile', message: 'What is the URL of the CSS file you would like to use?', default: 'http://www.jstips.co/style.css' }
 	];
 
 	inquirer.prompt(
@@ -541,7 +486,6 @@ var setProductionSite = function() {
 			session.sessionCSSPath = answers.cssFile;
 			session.sessionCrawlDepth = answers.depth;
 			session.sessionBaseURL = answers.url;
-			session.sessionNumberOfPagesToCrawl = answers.numberPages
 
 			return saveCSSLocal(session);
 		}
