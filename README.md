@@ -1,8 +1,8 @@
-#lucf
+# Liferay Unused CSS Finder
 
 ## Description
 
-A CLI app to find unused CSS selectors in a Liferay Theme
+A CLI app to find unused CSS selectors in a Liferay Theme or production site
 
 ## Usage
 
@@ -23,7 +23,3 @@ Copyright (c) 2016 Travis Cory
 ## Acknowledgments
 
 Built using [generator-commader](https://github.com/Hypercubed/generator-commander).
-=======
-# liferay-unused-css-finder
-A command line tool for finding unused CSS within your theme
->>>>>>> Initial commit
