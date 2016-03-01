@@ -24,8 +24,6 @@
   "bugs": "https://github.com/travisrcory/lucf/issues",
   "dependencies": {
     "autocmdr": "~0.0.7",
-    "cheerio": "^0.19.0",
-    "cli-table": "^0.3.1",
     "cli-spinner": "^0.2.4",
     "commander": "^2.7.1",
     "css": "^2.2.1",
@@ -38,7 +36,6 @@
     "lodash": "^3.6.0",
     "progress": "^1.1.8",
     "request": "^2.53.0",
-    "simplecrawler": "^0.6.0",
     "userhome": "^1.0.0"
   },
   "devDependencies": {},

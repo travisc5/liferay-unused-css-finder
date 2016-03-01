@@ -3,7 +3,6 @@
  */
 
 var _ = require('lodash');
-var cheerio = require('cheerio');
 var configUtil = require('../lib/configUtil');
 var css = require('css');
 var fs = require('fs-extra');
@@ -361,59 +360,6 @@ var cacheHTML = function(session) {
 			);
 		}
 	)
-};
-
-var searchPageForCSS = function(session) {
-	var index = 0;
-	var unusedCSSSelectors = [];
-	var allCSS = [];
-
-	if (handlebars_data.type == 'production') {
-		console.log('Now let\'s analyze these URLs!');
-	}
-
-	var bar = initializeProgressBar(session.sessionPageHTML.length, 'Crawling Layouts [:bar] :percent :etas');
-
-	_.forEach(
-		session.sessionPageHTML,
-		function(html) {
-			bar.tick();
-			index++;
-
-			if (index == session.sessionPageHTML.length) {
-				session.sessionAllCSS = _.uniq(allCSS);
-				session.sessionUnusedCSS = _.uniq(unusedCSSSelectors);
-
-				handlebars_data.unused_css = session.sessionUnusedCSS;
-
-				analyzeCSSResults(session);
-			}
-			else {
-				var $ = cheerio.load(html);
-
-				_.forEach(
-					session.sessionParseCSS,
-					function(selector) {
-						if (selector != undefined) {
-							if ((selector.search(/::?[^ ,:.]+|(?:\.not\()|(?:\@\-)/) == -1)) {
-								var length = $(selector).length;
-
-								allCSS.push(selector);
-
-								if (length == 0) {
-									unusedCSSSelectors.push(selector);
-								}
-								else if ((length > 0) && _.includes(unusedCSSSelectors, selector)) {
-									_.pull(unusedCSSSelectors, selector);
-									_.pull(session.sessionParseCSS, selector);
-								}
-							}
-						}
-					}
-				);
-			}
-		}
-	);
 };
 
 var setTheme = function(session) {
