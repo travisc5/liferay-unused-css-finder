@@ -25,8 +25,6 @@ var template = Handlebars.compile(resultsTemplate);
 var analyzeCSSResults = function(session) {
 	var unusedPercent = Math.round((session.sessionUnusedCSS.length / session.sessionAllCSS.length) * 100);
 
-	console.log(session.sessionUnusedCSS.length, session.sessionAllCSS.length);
-
 	handlebars_data.percent = unusedPercent;
 
 	if (unusedPercent >= 15) {
@@ -38,12 +36,13 @@ var analyzeCSSResults = function(session) {
 	else {
 		handlebars_data.condition = 'good';
 	}
-
+	
+	console.log(session.sessionUnusedCSS.length, session.sessionParseCSS.length);
 	console.log('Great! Please see \'../output/results.html\'');
+	
+	writeTemplateData(handlebars_data);
 
-	resultsFile.write(template(handlebars_data));
-
-	process.exit();
+	return process.exit();
 }
 
 var crawlSites = function(session) {
@@ -68,14 +67,14 @@ var crawlSites = function(session) {
 
 		session.sessionURLtoTest = urlsToTest;
 
-		cacheHTML(session);
+		searchForCSS(session);
 	}
 	else {
 		var urlsToTest = [];
 		
 		var crawler = new Crawler().configure(
 			{
-  			depth: 3
+  				depth: 3
 			}
 		);
 		
@@ -103,7 +102,7 @@ var crawlSites = function(session) {
 				
 				session.sessionURLtoTest = _.uniq(urlsToTest);
 				
-				cacheHTML(session);
+				searchForCSS(session);
 			}
 		);
 	}
@@ -289,6 +288,13 @@ var saveCSSLocal = function(session) {
 				);
 
 				cssTempArray = _.flatten(cssTempArray, true);
+				
+				cssTempArray = _.remove(
+					cssTempArray,
+					function(selector){
+						return selector.search(/::?[^ ,:.]+|(?:\.not\()|(?:\@\-)/) == -1;
+					}
+				);
 
 				session.sessionParseCSS = _.uniq(cssTempArray);
 
@@ -298,11 +304,12 @@ var saveCSSLocal = function(session) {
 	);
 };
 
-var cacheHTML = function(session) {
+var searchForCSS = function(session) {
 	console.log('Now we will grab all the HTML');
-	var unusedCSSSelectors = [];
+	
 	var allCSS = [];
 	var index = 1;
+	var unusedCSSSelectors = [];
 
 	var bar = initializeProgressBar(session.sessionURLtoTest.length, 'Crawling Layouts [:bar] :percent :etas');
 
@@ -320,24 +327,33 @@ var cacheHTML = function(session) {
 						if (err) {
 							throw err;
 						}
+						
+						var document = window.document;
 
 						if (window.document.readyState === 'complete') {
 							_.forEach(
 								session.sessionParseCSS,
 								function(selector) {
-									if (selector != undefined) {
-										if ((selector.search(/::?[^ ,:.]+|(?:\.not\()|(?:\@\-)/) == -1)) {
-											allCSS.push(selector);
+									var node = document.querySelectorAll(selector);
 
-											var node = window.document.querySelectorAll(selector);
-											
-											if (node.length == 0) {
-												unusedCSSSelectors.push(selector);
-											}
-											else if ((node.length > 0) && _.includes(unusedCSSSelectors, selector)) {
+									var length = node.length;
+									
+									allCSS.push(selector);
+
+									switch (length) {
+										case 0:
+											unusedCSSSelectors.push(selector);
+
+											break;
+										default:
+
+											_.pull(session.sessionParseCSS, selector);
+
+											if (_.includes(unusedCSSSelectors, selector)) {
 												_.pull(unusedCSSSelectors, selector);
 											}
-										}
+
+											break;
 									}
 								}
 							);
@@ -348,8 +364,11 @@ var cacheHTML = function(session) {
 						index++;
 
 						if (index == session.sessionURLtoTest.length) {
-							session.sessionAllCSS = _.uniq(allCSS);
 							session.sessionUnusedCSS = _.uniq(unusedCSSSelectors);
+							
+							session.sessionAllCSS = _.uniq(allCSS);
+							
+							console.log(allCSS.length, session.sessionParseCSS.length, session.sessionUnusedCSS.length);
 
 							handlebars_data.unused_css = session.sessionUnusedCSS;
 
@@ -418,16 +437,18 @@ var setLiferaySession = function() {
 var setProductionSite = function() {
 	var session = {};
 	var questions = [
-		{ name: 'url', message: 'What site would you like to crawl?', default: 'http://www.jstips.co/' },
+		{ name: 'url', message: 'What site would you like to crawl?', default: 'http://www.jstips.co' },
 		{ name: 'cssFile', message: 'What is the URL of the CSS file you would like to use?', default: 'http://www.jstips.co/style.css' }
 	];
 
 	inquirer.prompt(
 		questions,
 		function(answers) {
+			var nameRegex = /^(?:https?:\/\/)?(?:[^@\/\n]+@)?(?:www\.)?([^:\/\n]+)|^(?:http?:\/\/)?(?:[^@\/\n]+@)?(?:www\.)?([^:\/\n]+)/ig;
+									
 			handlebars_data.file_name = 'your CSS';
 			handlebars_data.file_path = answers.cssFile;
-			handlebars_data.theme_name = answers.url;
+			handlebars_data.theme_name = nameRegex.exec(answers.url)[1];
 
 			session.sessionCSSPath = answers.cssFile;
 			session.sessionCrawlDepth = answers.depth;
@@ -436,6 +457,10 @@ var setProductionSite = function() {
 			return saveCSSLocal(session);
 		}
 	);
+}
+
+var writeTemplateData = function(data) {
+	return resultsFile.write(template(handlebars_data));
 }
 
 module.exports = function(program) {
