@@ -1,4 +1,3 @@
-<<<<<<< c3045b40978836c96e154bf2383a3c8c62356a97
 #lucf
 
 ## Description
